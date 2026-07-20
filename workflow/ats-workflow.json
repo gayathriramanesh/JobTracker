@@ -1,0 +1,695 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "<GOOGLE_DRIVE_FILE_URL>",
+          "mode": "url"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        208,
+        0
+      ],
+      "id": "493a879e-84aa-4cda-93e5-7cf7666eca0a",
+      "name": "Download file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "<credential-id>",
+          "name": "<credential-name>"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        416,
+        0
+      ],
+      "id": "23f5dbf8-e3c3-485c-a9fd-79d417a69b32",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "<REDACTED>",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "<REDACTED>",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        624,
+        0
+      ],
+      "id": "1bbba704-00d9-48b8-ac0e-d5c9701aaa83",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<credential-id>",
+          "name": "<credential-name>"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1072,
+        16
+      ],
+      "id": "3e8a4dc6-810b-4eac-98c2-391aaaf7e73c",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "links",
+              "cssSelector": "ul.jobs-search__results-list li div a[class*=\"base-card\"]",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        1456,
+        0
+      ],
+      "id": "7f8ddb31-425a-4818-b5aa-b5b470b150be",
+      "name": "Extract job links from html"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "links",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        0
+      ],
+      "id": "a355ec1d-1cc2-4b04-ad05-521b1f0067b9",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2288,
+        160
+      ],
+      "id": "235dcf94-56b3-44ad-a5f6-a0cb7dd99c66",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        96,
+        352
+      ],
+      "id": "8e5c66a0-054c-45e6-8f62-91d6104ecb06",
+      "name": "Wait",
+      "webhookId": "cebaeedb-39dd-46b6-996e-eeb6f95b57e8"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": "div h1"
+            },
+            {
+              "key": "company",
+              "cssSelector": "div span a"
+            },
+            {
+              "key": "location",
+              "cssSelector": "div span[class*='topcard__flavor topcard__flavor--bullet']"
+            },
+            {
+              "key": "description",
+              "cssSelector": "div.description__text.description__text--rich"
+            },
+            {
+              "key": "jobid",
+              "cssSelector": "a[data-item-type='semaphore']",
+              "returnValue": "attribute",
+              "attribute": "data-semaphore-content-urn"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        512,
+        352
+      ],
+      "id": "332bf673-94fd-46b0-8603-1ff6e1dd3e93",
+      "name": "Parse job attributes"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.links }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        304,
+        352
+      ],
+      "id": "610230bc-0697-4e8b-9163-4ac81a7130bd",
+      "name": "Request to the job link"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an assistant that evaluates how well a resume matches a job description.\n\nJob Description:\n{{ $json.description }}\n\nResume:\n{{ $('Extract from File').item.json.text }}\n\nCompare the resume with the job description and calculate a match score from 0 to 100.\n\nReturn ONLY valid JSON.\n\nRules:\n- Do not write any text before or after the JSON.\n- Do not use markdown.\n- Do not use code fences.\n- Do not return key:value text.\n- Return exactly one JSON object.\n- The score must be a number.\n- The output must be a string.\n\nExample:\n\n{\n  \"score\": 85,\n  \"output\": \"The candidate is a strong match because...\"\n}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1232,
+        368
+      ],
+      "id": "fc689cad-4119-485c-967c-e4acfcec3354",
+      "name": "AI Agent",
+      "retryOnFail": true,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        896,
+        576
+      ],
+      "id": "d7dcfdcd-6bf5-4daf-b1a3-40229e1c9283",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "<credential-id>",
+          "name": "<credential-name>"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "<REDACTED>",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "<REDACTED>",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Title": "={{ $('Parse job attributes').item.json.title }}",
+            "score": "={{ $json.score }}",
+            "description": "={{ $('Parse job attributes').item.json.description }}",
+            "Company": "={{ $('Parse job attributes').item.json.company }}",
+            "Location": "={{ $('Parse job attributes').item.json.location }}",
+            "output": "={{ $json.output }}",
+            "link": "={{ $('Split Out').item.json.links$('Edit Fields').item.json.jobid }}"
+          },
+          "matchingColumns": [
+            "Title"
+          ],
+          "schema": [
+            {
+              "id": "Title",
+              "displayName": "Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Location",
+              "displayName": "Location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "link",
+              "displayName": "link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "score",
+              "displayName": "score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "output",
+              "displayName": "output",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2000,
+        512
+      ],
+      "id": "386ddb69-9441-45b5-a57e-45d3e030103a",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "<credential-id>",
+          "name": "<credential-name>"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const parsed = JSON.parse($json.output);\n\nif (parsed.score >= 60) {\n  return [\n    {\n      json: parsed\n    }\n  ];\n}\n\n// Return nothing if score is less than 60\nreturn [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        368
+      ],
+      "id": "8d4975f3-f821-4b2c-bc62-df4ca62d7bbc",
+      "name": "Code in JavaScript1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e5a97ba3-7344-4b82-ae6f-289cd8b030eb",
+              "name": "description",
+              "value": "={{ $json.description.replaceAll(/\\s+/g, \" \") }}",
+              "type": "string"
+            },
+            {
+              "id": "37acc236-07c7-4aea-8ffa-0d143291fc5e",
+              "name": "jobid",
+              "value": "={{ $json.jobid.split(\":\").last() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        768,
+        384
+      ],
+      "id": "b7ce911d-41ba-4107-bfed-8ad74468ed43",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "let url = \"https://www.linkedin.com/jobs/search/?f_TPR=r86400\"\n\nconst keyword = $input.first().json.Keyword\nconst location = $input.first().json.Location\nconst experienceLevel = $input.first().json['Experience']\n\nif (keyword != \"\") {\n  url += `&keywords=${keyword}`;\n}\nif (location != \"\") {\n  url += `&location=${location}`;\n}\nif (experienceLevel !== \"\") {\n  // Transform experience levels to LinkedIn codes\n  // Internship -> 1, Entry level -> 2, Associate -> 3\n  // Mid-Senior level -> 4, Director -> 5, Executive -> 6\n  const transformedExperiences = experienceLevel\n    .split(\",\")\n    .map((exp) => {\n      switch (exp.trim()) {\n        case \"Internship\": return \"1\";\n        case \"Entry level\": return \"2\";\n        case \"Associate\": return \"3\";\n        case \"Mid-Senior level\": return \"4\";\n        case \"Director\": return \"5\";\n        case \"Executive\": return \"6\";\n        default: return \"\";\n      }\n    })\n    .filter(Boolean);\n  url += `&f_E=${transformedExperiences.join(\",\")}`;\n}\nreturn {url}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        0
+      ],
+      "id": "29586d88-8555-4873-89cd-00e26ed3b5ff",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c997048b-3bde-4585-938e-c9897c526718",
+              "leftValue": "={{ $json.links }}",
+              "rightValue": "infosys",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "d0f513b3-46c6-473a-9992-70883349eb0d",
+              "leftValue": "={{ $json.links }}",
+              "rightValue": "cognizant",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        1872,
+        0
+      ],
+      "id": "1f672ae0-7897-4086-94a1-36b86f130863",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "path": "match-resume",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -16,
+        -16
+      ],
+      "id": "0c281ab0-5396-484c-a3cf-d898cf6caeab",
+      "name": "Webhook",
+      "webhookId": "<webhook-id>"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Extract job links from html",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract job links from html": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Request to the job link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request to the job link": {
+      "main": [
+        [
+          {
+            "node": "Parse job attributes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse job attributes": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "<version-id>",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "<instance-id>"
+  },
+  "nodeGroups": [],
+  "id": "<workflow-id>",
+  "tags": []
+}
